@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build
+dist/
+build/
+target/
+*.exe
+*.msi
+*.dmg
+*.AppImage
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Temporary / samples with large binaries (keep samples/.gitkeep if needed)
+*.3mf
+!samples/**/*.3mf
+
+# Logs / caches
+*.log
+.cache/
+.turbo/
