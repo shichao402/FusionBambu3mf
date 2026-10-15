@@ -1,0 +1,53 @@
+# 架构
+
+```text
+desktop  --HTTP 127.0.0.1:17890-->  bridge  -->  Fusion 当前设计
+   |                                  |
+   +-- 读写源 3MF                      +-- 读参数、套参数、导出网格
+   +-- 合并后写出成品 3MF
+```
+
+## 目录
+
+```text
+VERSION.json
+docs/adr
+docs/architecture
+docs/roadmap
+docs/research
+bridge/                 Python 插件
+desktop/                Tauri 主程序
+desktop/threemf         3MF 库与 Vitest
+```
+
+## 谁负责什么
+
+- Fusion：几何、组件树、标星参数定义、当前会话里算完的模型。
+- 源 3MF：`model_settings`、`project_settings`、`Metadata/fusion_batch_variants.json`。
+- 成品 3MF：当时的 Fusion 网格，加上当时已保存的源配方。不回写源文件。
+
+## 层级
+
+对「推拉干燥盒 v18」的实测见 [3MF 探测](../research/3mf-hierarchy.md)。Fusion 导出根组件时没有写 `<components>`，而是多个网格对象，相对位置已经烘进顶点。
+
+因此成品里用一个可打印 object，每个 Fusion 网格对象是一个 part，matrix 用单位阵，不再变换顶点。桌面里的树仍来自 Occurrence，用路径对表。灯灭的 Body 和被抑制的 Occurrence 不进入树。
+
+## 合并时不能做的事
+
+- 不自行计算坐标系。`3dmodel.model` 的 transform 是 12 个数，`model_settings` 的 matrix 是 16 个数，不互相粘贴。
+- 替换网格时保持 object/part 的 id，以及 `<assemble>` 里的盘子变换。
+- 复制 `project_settings` 和未改写的耗材/机器侧车。不复制 `plate_*.gcode` 与 `slice_info`。
+- 写入 XML 前转义 `& < >`。
+- `[Content_Types].xml` 声明仍留在包内的文件。
+
+## 桥的线程
+
+HTTP 线程只入队并 `fireCustomEvent`。套参数、读树、导出都在主线程。批量导出一次只跑一个变体：套参数、等计算完成、导出、再下一个。结束后或取消时恢复参数。
+
+## 保存
+
+写源 3MF 之前，在同目录复制一份 `.bak`。
+
+## 导出文件名
+
+每个变体写成 `{变体名}.3mf`。名字里不能做文件名的字符换成下划线。源 3MF 只在用户点保存时更新。

@@ -1,0 +1,13 @@
+{
+	"autodeskProduct": "Fusion360",
+	"type": "addin",
+	"id": "FusionBambuBridge",
+	"author": "",
+	"description": {
+		"": "FusionBambu3mf 本机 HTTP 桥"
+	},
+	"version": "0.1.0",
+	"runOnStartup": true,
+	"supportedOS": "windows|mac",
+	"editEnabled": true
+}

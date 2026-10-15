@@ -29,9 +29,8 @@ __pycache__/
 .venv/
 venv/
 
-# Temporary / samples with large binaries (keep samples/.gitkeep if needed)
-*.3mf
-!samples/**/*.3mf
+# Probe exports from a live design stay local
+samples/_probe/
 
 # Logs / caches
 *.log
