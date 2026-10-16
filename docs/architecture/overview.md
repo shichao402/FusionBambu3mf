@@ -18,7 +18,10 @@ docs/research
 bridge/                 Python 插件
 desktop/                Tauri 主程序
 desktop/threemf         3MF 库与 Vitest
+scripts/ci.mjs          版本戳、测试、exe/dmg、发布
 ```
+
+安装包把 `bridge/` 和 `VERSION.json` 打进资源目录。从仓库启动时仍读仓库里的桥；安装后的程序读包内这份。Windows 插件目录用 `%APPDATA%\Autodesk\Autodesk Fusion\API\AddIns`，macOS 用 `~/Library/Application Support/Autodesk/Autodesk Fusion/API/AddIns`。若本机仍是旧的 `Autodesk Fusion 360` 目录且该目录已存在，则复制到那里。
 
 ## 谁负责什么
 

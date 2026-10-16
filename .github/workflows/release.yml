@@ -1,0 +1,55 @@
+name: release
+
+on:
+  workflow_dispatch:
+  push:
+    tags: [dev, stable]
+
+jobs:
+  package:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - run: node scripts/ci.mjs
+        env:
+          CI_TASK: package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.os }}
+          path: dist/release/*
+          if-no-files-found: error
+
+  publish:
+    if: github.ref == 'refs/tags/dev' || github.ref == 'refs/tags/stable'
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installer-*
+          path: dist/release
+          merge-multiple: true
+      - run: node scripts/ci.mjs
+        env:
+          CI_TASK: publish
+          GH_TOKEN: ${{ github.token }}

@@ -1,4 +1,5 @@
 use serde::Serialize;
+use tauri::Manager;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -13,8 +14,8 @@ struct BridgeStatus {
     version: String,
 }
 
-fn repo_root() -> PathBuf {
-    let current = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+fn dev_repo_root() -> Option<PathBuf> {
+    let current = std::env::current_dir().ok()?;
     let candidates = [
         current.join("../../bridge"),
         current.join("../bridge"),
@@ -22,18 +23,29 @@ fn repo_root() -> PathBuf {
     ];
     for candidate in candidates {
         if candidate.join("FusionBambuBridge.py").exists() {
-            return candidate.parent().unwrap_or(&candidate).to_path_buf();
+            return candidate.parent().map(|path| path.to_path_buf());
         }
     }
-    current
+    None
 }
 
-fn bridge_source() -> PathBuf {
-    repo_root().join("bridge")
+fn packaged_root(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let dir = app.path().resource_dir().ok()?;
+    if dir.join("bridge").join("FusionBambuBridge.py").exists() {
+        return Some(dir);
+    }
+    None
 }
 
-fn version_text() -> String {
-    let path = repo_root().join("VERSION.json");
+fn product_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    if let Some(dir) = dev_repo_root() {
+        return Ok(dir);
+    }
+    packaged_root(app).ok_or_else(|| "找不到随安装包附带的 bridge".to_string())
+}
+
+fn version_text(root: &Path) -> String {
+    let path = root.join("VERSION.json");
     let raw = fs::read_to_string(path).unwrap_or_else(|_| "{\"version\":\"0.1.0\"}".to_string());
     serde_json::from_str::<serde_json::Value>(&raw)
         .ok()
@@ -42,8 +54,39 @@ fn version_text() -> String {
 }
 
 fn addins_dir() -> PathBuf {
-    let appdata = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(appdata)
+    let mut bases = Vec::new();
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        bases.push(PathBuf::from(appdata).join("Autodesk"));
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        bases.push(
+            PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join("Autodesk"),
+        );
+    }
+    for base in &bases {
+        for name in ["Autodesk Fusion", "Autodesk Fusion 360"] {
+            let dir = base.join(name).join("API").join("AddIns");
+            if dir.is_dir() {
+                return dir.join("FusionBambuBridge");
+            }
+        }
+    }
+    if cfg!(windows) {
+        let appdata = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
+        return PathBuf::from(appdata)
+            .join("Autodesk")
+            .join("Autodesk Fusion")
+            .join("API")
+            .join("AddIns")
+            .join("FusionBambuBridge");
+    }
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    PathBuf::from(home)
+        .join("Library")
+        .join("Application Support")
         .join("Autodesk")
         .join("Autodesk Fusion")
         .join("API")
@@ -120,12 +163,13 @@ fn write_manifest_version(dest: &Path, version: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn sync_bridge() -> Result<BridgeStatus, String> {
-    let source = bridge_source();
+fn sync_bridge(app: tauri::AppHandle) -> Result<BridgeStatus, String> {
+    let root = product_root(&app)?;
+    let source = root.join("bridge");
     let dest = addins_dir();
     let source_hash = digest(&source)?;
     let installed_hash = fs::read_to_string(dest.join("payload.hash")).unwrap_or_default().trim().to_string();
-    let version = version_text();
+    let version = version_text(&root);
     let copied = installed_hash != source_hash;
     if copied {
         copy_tree(&source, &dest)?;
