@@ -51,6 +51,45 @@ describe('threemf', () => {
     const loaded = readProject(saved)
     expect(loaded.objects[0].parts).toHaveLength(2)
     expect(loaded.assembleXml).toContain('assemble_item')
+    expect(modelXml).toContain('BambuStudio-')
+    expect(modelXml).toContain('BambuStudio:3mfVersion')
+    const projectSettings = JSON.parse(strFromU8(files['Metadata/project_settings.config'])) as {
+      nozzle_diameter: string[]
+      extruder_type: string[]
+    }
+    expect(projectSettings.extruder_type).toHaveLength(projectSettings.nozzle_diameter.length)
+  })
+
+  it('does not reuse a color group id for the printable object', () => {
+    const xml = model([
+      { id: '1', name: '盒子', z: '0' },
+      { id: '3', name: '盖子', z: '9' },
+    ]).replace(
+      '<resources>',
+      '<resources><m:colorgroup id="4" xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02"><m:color color="#FFFFFFFF"/></m:colorgroup>',
+    )
+    const project = createFromFusionMesh(pack({ '3D/3dmodel.model': xml }), '干燥盒')
+    expect(project.objects[0].id).toBe('5')
+    const modelXml = strFromU8(project.files['3D/3dmodel.model'])
+    expect(modelXml.match(/id="4"/g)?.length).toBe(1)
+  })
+
+  it('pads extruder_type to the nozzle count and leaves a matching project untouched', () => {
+    const created = createFromFusionMesh(pack({
+      '3D/3dmodel.model': model([{ id: '1', name: '盒子', z: '0' }]),
+    }), '干燥盒')
+    const broken = '{"printer_model":"Other","nozzle_diameter":["0.4","0.2"],"extruder_type":["Direct Drive"],"sparse_infill_density":"15%"}'
+    created.files['Metadata/project_settings.config'] = strToU8(broken)
+    const repaired = JSON.parse(strFromU8(unzipSync(toBytes(created))['Metadata/project_settings.config'])) as {
+      extruder_type: string[]
+      sparse_infill_density: string
+    }
+    expect(repaired.extruder_type).toEqual(['Direct Drive', 'Direct Drive'])
+    expect(repaired.sparse_infill_density).toBe('15%')
+
+    const sound = '{"nozzle_diameter":["0.4"],"extruder_type":["Direct Drive"]}'
+    created.files['Metadata/project_settings.config'] = strToU8(sound)
+    expect(strFromU8(unzipSync(toBytes(created))['Metadata/project_settings.config'])).toBe(sound)
   })
 
   it('replaces a matching mesh and keeps the part id and assemble text', () => {

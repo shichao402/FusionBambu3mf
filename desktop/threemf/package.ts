@@ -3,8 +3,10 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
 
 const MODEL = '3D/3dmodel.model'
 const SETTINGS = 'Metadata/model_settings.config'
+const PROJECT = 'Metadata/project_settings.config'
 const VARIANTS = 'Metadata/fusion_batch_variants.json'
 const IDENTITY_MATRIX = '1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1'
+const BAMBU_APPLICATION = 'BambuStudio-01.09.07.50'
 
 export type MetadataMap = Record<string, string>
 
@@ -214,11 +216,70 @@ function meshObjects(modelXml: string): { id: string; name: string }[] {
     }))
 }
 
+function allocatedIds(modelXml: string): number[] {
+  const ids: number[] = []
+  const walk = (node: XmlElement) => {
+    if (node.nodeType === 1) {
+      const raw = node.getAttribute('id')
+      if (raw) {
+        const id = Number(raw)
+        if (Number.isFinite(id)) ids.push(id)
+      }
+    }
+    const nodes = node.childNodes
+    for (let index = 0; index < nodes.length; index += 1) {
+      const child = nodes[index]
+      if (child) walk(child)
+    }
+  }
+  walk(parseXml(modelXml))
+  return ids
+}
+
 function nextObjectId(modelXml: string): string {
-  const ids = descendants(parseXml(modelXml), 'object')
-    .map((objectNode) => Number(objectNode.getAttribute('id') || '0'))
-    .filter((id) => Number.isFinite(id))
-  return String(Math.max(0, ...ids) + 1)
+  return String(Math.max(0, ...allocatedIds(modelXml)) + 1)
+}
+
+function insertModelMetadata(xml: string, name: string, value: string): string {
+  const tag = `<metadata name="${name}">${value}</metadata>`
+  const resources = xml.search(/<resources[\s>]/)
+  if (resources < 0) return xml
+  return `${xml.slice(0, resources)}${tag}${xml.slice(resources)}`
+}
+
+function ensureBambuModel(xml: string): string {
+  let next = xml
+  if (!next.includes('BambuStudio-')) {
+    next = insertModelMetadata(next, 'Application', BAMBU_APPLICATION)
+  }
+  if (!next.includes('BambuStudio:3mfVersion')) {
+    next = insertModelMetadata(next, 'BambuStudio:3mfVersion', '1')
+  }
+  return next
+}
+
+function repairProjectSettings(files: Record<string, Uint8Array>): void {
+  const current = files[PROJECT]
+  if (!current) {
+    files[PROJECT] = strToU8(JSON.stringify({
+      nozzle_diameter: ['0.4'],
+      extruder_type: ['Direct Drive'],
+    }))
+    return
+  }
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(strFromU8(current)) as Record<string, unknown>
+  } catch {
+    return
+  }
+  const nozzles = parsed.nozzle_diameter
+  if (!Array.isArray(nozzles) || nozzles.length <= 1) return
+  const types = Array.isArray(parsed.extruder_type) ? parsed.extruder_type : []
+  if (types.length === nozzles.length) return
+  const fill = types.length > 0 ? types[types.length - 1] : 'Direct Drive'
+  parsed.extruder_type = nozzles.map((_, index) => types[index] ?? fill)
+  files[PROJECT] = strToU8(JSON.stringify(parsed))
 }
 
 function groupFusionMeshes(modelXml: string, documentName: string): string {
@@ -258,7 +319,7 @@ export function createFromFusionMesh(bytes: Uint8Array, documentName: string): P
     files,
     objects: [{
       id: objectId,
-      metadata: { name: documentName },
+      metadata: { name: documentName, extruder: '1' },
       parts: meshes.map((mesh) => ({
         id: mesh.id,
         subtype: 'normal_part',
@@ -442,8 +503,10 @@ export function updatePart(
 
 export function toBytes(project: Project3mf): Uint8Array {
   const files = { ...project.files }
+  if (files[MODEL]) files[MODEL] = strToU8(ensureBambuModel(strFromU8(files[MODEL])))
   files[SETTINGS] = strToU8(writeSettings(project))
   files[VARIANTS] = strToU8(JSON.stringify({ variants: project.variants }, null, 2))
+  repairProjectSettings(files)
   ensureContentTypes(files)
   return zipSync(files)
 }
@@ -458,6 +521,7 @@ function ensureContentTypes(files: Record<string, Uint8Array>): void {
 </Types>`
   const extras = [
     ['/Metadata/model_settings.config', 'text/xml'],
+    ['/Metadata/project_settings.config', 'application/json'],
     ['/Metadata/fusion_batch_variants.json', 'application/json'],
   ]
   let next = current
