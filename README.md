@@ -17,8 +17,10 @@ Fusion 薄桥加上 Tauri 桌面程序。Fusion 管几何和标星参数，一�
 3. 开发期复制后用 Fusion MCP 对该插件 `stop()` 再 `run(false)`；终端用户若 Fusion 还没加载桥，重启 Fusion。
 4. 健康检查：`http://127.0.0.1:17890/health`。
 5. 库测试：在 `desktop/` 执行 `npm test`。
+6. 把当前代码装成开发版：在 `desktop/` 执行 `npm run deploy:dev`。它打出 Windows 安装包并静默装到安装包的默认目录，目录名加 `Dev`：`%LOCALAPPDATA%\FusionBambu3mfDev`。正式版仍是 `%LOCALAPPDATA%\FusionBambu3mf`。
+7. 更新打印预设目录：在 `desktop/` 执行 `npm run presets:sync`。它用 sparse checkout 只取 bambulab/BambuStudio 的 `resources/profiles`，再生成 `desktop/threemf/bambu-presets.json`。
 
-产品版本只写在根目录 `VERSION.json`。改版本后执行 `CI_TASK=stamp node scripts/ci.mjs`，再提交被写入的版本字段和 `bridge/payload.hash`。导出成品文件名为 `{变体名}.3mf`。
+产品版本只写在根目录 `VERSION.json`。改版本后执行 `CI_TASK=stamp node scripts/ci.mjs`，再提交被写入的版本字段和 `bridge/payload.hash`。原始模型导出为与源文件同名的 3MF，变体为 `{变体名}.3mf`。
 
 ## 发行
 

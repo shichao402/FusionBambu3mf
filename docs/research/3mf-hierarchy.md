@@ -20,13 +20,13 @@
 
 ## 结论
 
-Fusion 这次写出的是同一装配坐标系里的多个网格对象，不是 3MF 组件树。Bambu 只有在把这些对象收成**一个 object 的多个 part** 时，才会保住盖子和盒子的相对位置。若分成两个独立对象，切片器会各自落到盘上。
+Fusion 这次写出的是同一装配坐标系里的多个网格对象，不是 3MF 组件树。顶点里已经带好相对位置。若再包一层 `<components>`，Bambu Studio 会把它显示成一个复合零件，和 Fusion 里的两个零件对不上。因此每个网格保持自己的 build item 和自己的 object/part。
 
 因此合并规则是：
 
 - 一次导出根组件。
-- `model_settings` 里用一个 object，名字用文档名。
-- Fusion 的每个 mesh object 成为一个 part。matrix 用单位 16 个数，不把顶点再变换一次。
+- 不把多个网格收成一个 `<components>` 父对象。那样 Bambu Studio 会显示成一个复合零件。
+- 每个 Fusion mesh object 对应 `model_settings` 里的一个 object，下面一个同名 part。matrix 用单位 16 个数，不把顶点再变换一次。
 - object/part 的 id 在以后替换网格时保持不变。`<assemble>` 只表达这个 object 在盘上的位置。
 - 桌面里的树仍来自 Fusion Occurrence，用路径对表。和网格对象匹配时，优先用路径最后一段；重名时再用完整路径。本次样本没有重名。
 

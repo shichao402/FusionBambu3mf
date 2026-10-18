@@ -36,3 +36,6 @@ samples/_probe/
 *.log
 .cache/
 .turbo/
+
+# Sparse checkout of bambulab/BambuStudio resources/profiles
+vendor/

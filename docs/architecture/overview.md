@@ -33,7 +33,7 @@ scripts/ci.mjs          版本戳、测试、exe/dmg、发布
 
 对「推拉干燥盒 v18」的实测见 [3MF 探测](../research/3mf-hierarchy.md)。Fusion 导出根组件时没有写 `<components>`，而是多个网格对象，相对位置已经烘进顶点。
 
-因此成品里用一个可打印 object，每个 Fusion 网格对象是一个 part，matrix 用单位阵，不再变换顶点。桌面里的树仍来自 Occurrence，用路径对表。灯灭的 Body 和被抑制的 Occurrence 不进入树。
+因此每个 Fusion 网格对象各自成为一个 Bambu 对象，下面一个同名零件，不再包进一个 `<components>` 父对象。相对位置仍留在 Fusion 写出的顶点里，不另算变换。桌面里的树仍来自 Occurrence，用路径对表。灯灭的 Body 和被抑制的 Occurrence 不进入树。
 
 ## 合并时不能做的事
 
@@ -49,8 +49,8 @@ HTTP 线程只入队并 `fireCustomEvent`。套参数、读树、导出都在主
 
 ## 保存
 
-写源 3MF 之前，在同目录复制一份 `.bak`。
+零件、变体、打印预设和导出目录的修改自动写回源 3MF。打印机、工艺、耗材和热床写入的是 Bambu Studio 系统预设名称。名称目录来自 bambulab/BambuStudio 的 `resources/profiles`，用 sparse checkout 跟到最新。写之前在同目录复制一份 `.bak`。
 
 ## 导出文件名
 
-每个变体写成 `{变体名}.3mf`。名字里不能做文件名的字符换成下划线。源 3MF 只在用户点保存时更新。
+原始模型和变体走同一条生成：用当前工程里纳入的零件、层级和打印设置，套上当时的 Fusion 网格。原始模型写成与源文件同名的文件，不套变体参数。每个变体写成 `{变体名}.3mf`。名字里不能做文件名的字符换成下划线。导出文件不覆盖源 3MF。
