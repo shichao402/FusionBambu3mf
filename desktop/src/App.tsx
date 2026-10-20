@@ -41,6 +41,7 @@ import {
   updatePart,
   type Project3mf,
 } from '../threemf/package'
+import { detectPlatform, setPlatform } from '../threemf/paths'
 
 type BridgeStatus = {
   sourceHash: string
@@ -149,6 +150,9 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    invoke<string>('host_platform')
+      .then((platform) => setPlatform(platform === 'windows' ? 'windows' : 'posix'))
+      .catch(() => setPlatform(detectPlatform()))
     refreshBridge().catch((error) => notify('bad', String(error)))
     const timer = window.setInterval(() => {
       refreshHealth().catch(() => undefined)

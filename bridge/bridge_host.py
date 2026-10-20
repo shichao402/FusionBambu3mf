@@ -43,12 +43,25 @@ class _Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         return
 
+    def _origin(self):
+        origin = self.headers.get('Origin') or ''
+        allowed = (
+            'http://127.0.0.1:17890',
+            'http://localhost:17890',
+            'http://localhost:1420',
+            'http://127.0.0.1:1420',
+            'tauri://localhost',
+            'http://tauri.localhost',
+        )
+        return origin if origin in allowed else allowed[0]
+
     def _send(self, status, payload):
         data = json.dumps(payload, ensure_ascii=False).encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Content-Length', str(len(data)))
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Origin', self._origin())
+        self.send_header('Vary', 'Origin')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()

@@ -218,10 +218,15 @@ fn pick_dir() -> Option<String> {
     rfd::FileDialog::new().pick_folder().map(|path| path.display().to_string())
 }
 
+#[tauri::command]
+fn host_platform() -> String {
+    if cfg!(windows) { "windows".to_string() } else { "posix".to_string() }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![sync_bridge, read_bytes, write_bytes, pick_open, pick_save, pick_dir])
+        .invoke_handler(tauri::generate_handler![sync_bridge, read_bytes, write_bytes, pick_open, pick_save, pick_dir, host_platform])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

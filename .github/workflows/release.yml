@@ -7,12 +7,21 @@ on:
 
 jobs:
   package:
-    name: ${{ matrix.os }}
+    name: ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            label: windows-x64
+            arch: ""
+          - os: macos-14
+            label: macos-arm64
+            arch: aarch64-apple-darwin
+          - os: macos-13
+            label: macos-x64
+            arch: x86_64-apple-darwin
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,15 +33,22 @@ jobs:
         with:
           python-version: "3.12"
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.arch }}
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: desktop/src-tauri
       - run: node scripts/ci.mjs
         env:
           CI_TASK: package
+          CI_TARGET_ARCH: ${{ matrix.arch }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - uses: actions/upload-artifact@v4
         with:
-          name: installer-${{ matrix.os }}
+          name: installer-${{ matrix.label }}
           path: dist/release/*
           if-no-files-found: error
 
@@ -49,6 +65,7 @@ jobs:
           pattern: installer-*
           path: dist/release
           merge-multiple: true
+      - run: ls -l dist/release
       - run: node scripts/ci.mjs
         env:
           CI_TASK: publish

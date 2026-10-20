@@ -45,17 +45,24 @@ function payloadDigest(dir) {
   return hash.digest('hex')
 }
 
+function pythonCandidates() {
+  if (process.platform === 'win32') return ['python', 'py', 'python3']
+  return ['python3', 'python']
+}
+
 function pythonDigest() {
   const code = 'import os,hash_payload; print(hash_payload.payload_digest(os.environ["BRIDGE_ROOT"]))'
-  for (const bin of ['python', 'python3']) {
+  const tried = []
+  for (const bin of pythonCandidates()) {
     const result = spawnSync(bin, ['-c', code], {
       cwd: bridgeDir,
       env: { ...process.env, BRIDGE_ROOT: bridgeDir },
       encoding: 'utf8',
     })
     if (result.status === 0) return result.stdout.trim()
+    tried.push(`${bin}: ${(result.stderr || result.error?.message || '').trim().split('\n').pop() || 'unavailable'}`)
   }
-  fail('需要 python 来核对 payload.hash')
+  fail(`需要 python 来核对 payload.hash，已尝试 ${tried.join(' | ')}`)
 }
 
 function replaceVersion(path, pattern, version, write) {
@@ -115,25 +122,53 @@ function bundleName() {
   fail('安装包只在 Windows（exe）和 macOS（dmg）上构建')
 }
 
+const targetArch = process.env.CI_TARGET_ARCH || ''
+
+function buildArgs(bundle) {
+  const args = ['tauri', 'build', '--bundles', bundle]
+  if (targetArch) args.push('--target', targetArch)
+  return args
+}
+
+function bundleDirName() {
+  return targetArch ? join('release', targetArch, 'bundle') : join('release', 'bundle')
+}
+
+function archSuffix() {
+  if (!targetArch) return ''
+  return `-${targetArch}`
+}
+
+function stampInstallerName(name) {
+  const suffix = archSuffix()
+  if (!suffix) return name
+  const extensions = ['.exe', '.dmg']
+  const extension = extensions.find((item) => name.endsWith(item))
+  if (!extension) return name
+  return `${name.slice(0, -extension.length)}${suffix}${extension}`
+}
+
 function collectInstallers() {
   const bundle = bundleName()
-  const from = join(desktopDir, 'src-tauri', 'target', 'release', 'bundle', bundle)
+  const from = join(desktopDir, 'src-tauri', 'target', bundleDirName(), bundle)
   const output = join(root, 'dist', 'release')
   mkdirSync(output, { recursive: true })
   const names = readdirSync(from).filter((name) => name.endsWith('.exe') || name.endsWith('.dmg'))
   if (!names.length) fail(`没有在 ${from} 找到安装包`)
-  for (const name of names) copyFileSync(join(from, name), join(output, name))
-  console.log(names.map((name) => join('dist', 'release', name)).join('\n'))
+  for (const name of names) copyFileSync(join(from, name), join(output, stampInstallerName(name)))
+  console.log(names.map((name) => join('dist', 'release', stampInstallerName(name))).join('\n'))
 }
 
 function publish(version) {
   const channel = releaseChannel()
   if (!channel) fail('publish 需要 dev 或 stable 标签')
   const output = join(root, 'dist', 'release')
+  if (!existsSync(output)) fail(`产物目录不存在: ${output}`)
   const files = readdirSync(output)
     .filter((name) => name.endsWith('.exe') || name.endsWith('.dmg'))
     .map((name) => join(output, name))
-  if (!files.length) fail('dist/release 里没有 exe 或 dmg')
+  if (!files.length) fail(`dist/release 里没有 exe 或 dmg: ${output}`)
+  console.log(files.map((file) => `upload ${file}`).join('\n'))
   const title = `FusionBambu3mf ${version} (${channel})`
   const notes = `${channel} 通道。版本号 ${version} 来自 VERSION.json，dev 与 stable 共用这个版本号。`
   const view = spawnSync('gh', ['release', 'view', channel], { cwd: root, stdio: 'ignore' })
@@ -146,6 +181,39 @@ function publish(version) {
   if (channel === 'dev') args.push('--prerelease')
   if (channel === 'stable') args.push('--latest')
   run('gh', args, root)
+}
+
+function macSigningIdentity() {
+  return process.env.APPLE_SIGNING_IDENTITY || ''
+}
+
+function notarizeEnabled() {
+  return Boolean(
+    process.env.APPLE_ID &&
+      process.env.APPLE_PASSWORD &&
+      process.env.APPLE_TEAM_ID &&
+      macSigningIdentity(),
+  )
+}
+
+function signAndNotarize() {
+  if (process.platform !== 'darwin') return
+  const output = join(root, 'dist', 'release')
+  const names = readdirSync(output).filter((name) => name.endsWith('.dmg'))
+  if (!names.length) fail(`没有在 ${output} 找到 dmg，无法签名`)
+  if (!notarizeEnabled()) {
+    console.log('未配置 Apple 证书，使用临时签名（ad-hoc）；分发时需在文档说明用户侧放行方式')
+    for (const name of names) {
+      run('codesign', ['--force', '--deep', '--sign', '-', join(output, name)], root)
+    }
+    return
+  }
+  for (const name of names) {
+    const file = join(output, name)
+    run('codesign', ['--force', '--timestamp', '--sign', macSigningIdentity(), file], root)
+    run('xcrun', ['notarytool', 'submit', file, '--apple-id', process.env.APPLE_ID, '--password', process.env.APPLE_PASSWORD, '--team-id', process.env.APPLE_TEAM_ID, '--wait'], root)
+    run('xcrun', ['stapler', 'staple', file], root)
+  }
 }
 
 const task = process.env.CI_TASK || 'check'
@@ -168,8 +236,9 @@ if (task === 'check') {
   stamp(version, true)
   console.log(writeHash())
   installAndTest()
-  run('npx', ['tauri', 'build', '--bundles', bundleName()], desktopDir)
+  run('npx', buildArgs(bundleName()), desktopDir)
   collectInstallers()
+  signAndNotarize()
 } else if (task === 'publish') {
   publish(version)
 } else {

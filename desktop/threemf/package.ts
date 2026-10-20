@@ -1,5 +1,6 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
+import { equalPath, getPlatform, isAbsolutePath, joinPath, parentDir, separator, splitPath } from './paths'
 import { choiceFromParsed, emptyPrintChoice, presetSettings, writeChoice, type PrintChoice, type PrintPatch } from './presets'
 
 const MODEL = '3D/3dmodel.model'
@@ -203,19 +204,22 @@ export function membersFromAlignment(nodes: { path: string; keys: string[] }[], 
 export function normalizeExportDir(value: unknown): string {
   if (typeof value !== 'string') return DEFAULT_EXPORT_DIR
   const trimmed = value.trim().replaceAll('\\', '/')
-  if (!trimmed || /^[a-zA-Z]:/.test(trimmed) || trimmed.startsWith('/')) return DEFAULT_EXPORT_DIR
+  if (!trimmed || /^[a-zA-Z]:/.test(trimmed) || trimmed.startsWith('//')) return DEFAULT_EXPORT_DIR
+  const absolute = trimmed.startsWith('/') && !trimmed.startsWith('//')
   const parts = trimmed.split('/').filter((part) => part && part !== '.')
   if (parts.some((part) => part.includes(':') || part.includes('\0'))) return DEFAULT_EXPORT_DIR
-  return parts.join('/') || '.'
+  const joined = parts.join('/')
+  if (!joined) return DEFAULT_EXPORT_DIR
+  return absolute ? `/${joined}` : joined
 }
 
 export function relativeExportDir(projectFile: string, absoluteDir: string): string | null {
   const from = splitPath(parentDir(projectFile))
   const to = splitPath(absoluteDir)
   if (!from.length || !to.length) return null
-  if (from[0].toLowerCase() !== to[0].toLowerCase()) return null
+  if (!equalPath(from[0], to[0])) return null
   let shared = 0
-  while (shared < from.length && shared < to.length && from[shared].toLowerCase() === to[shared].toLowerCase()) shared += 1
+  while (shared < from.length && shared < to.length && equalPath(from[shared], to[shared])) shared += 1
   const relative = [...from.slice(shared).map(() => '..'), ...to.slice(shared)].join('/')
   return normalizeExportDir(relative || '.')
 }
@@ -223,22 +227,18 @@ export function relativeExportDir(projectFile: string, absoluteDir: string): str
 export function resolveExportDir(projectFile: string, exportDir: string): string {
   const base = splitPath(parentDir(projectFile))
   const relative = normalizeExportDir(exportDir)
+  const platform = getPlatform()
+  if (isAbsolutePath(relative, platform)) {
+    return platform === 'posix' ? relative : joinPath(splitPath(relative), platform)
+  }
   if (!base.length) return relative
   for (const part of relative.split('/')) {
     if (part === '..') {
       if (base.length > 1) base.pop()
     } else if (part !== '.') base.push(part)
   }
-  return base.join('\\')
-}
-
-function parentDir(filePath: string): string {
-  const index = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
-  return index >= 0 ? filePath.slice(0, index) : ''
-}
-
-function splitPath(value: string): string[] {
-  return value.replaceAll('/', '\\').replace(/\\+$/, '').split('\\').filter(Boolean)
+  const joined = base.join(separator(platform))
+  return platform === 'posix' ? `/${joined}` : joined
 }
 
 function escapeXml(value: string): string {
