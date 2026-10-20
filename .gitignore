@@ -39,3 +39,6 @@ samples/_probe/
 
 # Sparse checkout of bambulab/BambuStudio resources/profiles
 vendor/
+
+# 图标产物：default 由 tauri.conf.json 直接引用，需入库；其余按需本地生成
+desktop/src-tauri/icons-*/

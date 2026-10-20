@@ -8,6 +8,7 @@ Fusion 薄桥加上 Tauri 桌面程序。Fusion 管几何和标星参数，一�
 
 - [架构](docs/architecture/overview.md)
 - [桥 API](docs/architecture/bridge-api.md)
+- [应用图标](docs/icons.md)
 - [决策](docs/adr/0001-thin-bridge.md)
 - [macOS 支持决策](docs/adr/0005-macos-support.md)
 - [路线](docs/roadmap/mvp.md)
@@ -56,6 +57,7 @@ Fusion 薄桥加上 Tauri 桌面程序。Fusion 管几何和标星参数，一�
 
    开发版与正式版用不同的 `productName` 和 `identifier`，可以共存。其他平台直接报错退出。
 7. 更新打印预设目录：在 `desktop/` 执行 `npm run presets:sync`。它用 sparse checkout 只取 bambulab/BambuStudio 的 `resources/profiles`，再生成 `desktop/threemf/bambu-presets.json`。
+8. 更新应用图标：改动 `assets/icons/<套名>/master.png` 后，在 `desktop/` 执行 `npm run icons` 重建全部图标资产。平台差异、多套图标与母版要求见[应用图标](docs/icons.md)。
 
 产品版本只写在根目录 `VERSION.json`。改版本后执行 `CI_TASK=stamp node scripts/ci.mjs`，再提交被写入的版本字段和 `bridge/payload.hash`。原始模型导出为与源文件同名的 3MF，变体为 `{变体名}.3mf`。
 

@@ -20,12 +20,29 @@ function run(command, args, cwd) {
   if (result.status !== 0) fail(`${command} ${args.join(' ')} 退出 ${result.status ?? 1}`)
 }
 
+function ensureDevIcons() {
+  const iconsDir = join(desktopDir, 'src-tauri', 'icons-dev')
+  const required = ['icon.icns', 'icon.ico', '32x32.png', '128x128.png', '128x128@2x.png']
+  if (required.every((name) => existsSync(join(iconsDir, name)))) return iconsDir
+  console.log('开发版图标缺失，先生成')
+  run('node', ['scripts/icons.mjs', '--set', 'dev'], root)
+  for (const name of required) {
+    if (!existsSync(join(iconsDir, name))) fail(`生成后仍缺少 ${join(iconsDir, name)}`)
+  }
+  return iconsDir
+}
+
 function writeDevConfig() {
+  const iconsDir = ensureDevIcons()
+  // 用绝对路径，避免 tauri 合并 --config 时对相对路径的解析基准产生歧义。
+  const icon = ['32x32.png', '128x128.png', '128x128@2x.png', 'icon.icns', 'icon.ico']
+    .map((name) => join(iconsDir, name))
   const configPath = join(tmpdir(), 'fusionbambu-tauri-dev.json')
   writeFileSync(configPath, JSON.stringify({
     productName,
     identifier: 'dev.fusionbambu.desktop.dev',
     mainBinaryName: productName,
+    bundle: { icon },
   }))
   return configPath
 }

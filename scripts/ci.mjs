@@ -228,6 +228,7 @@ if (task === 'check') {
     fail(`payload.hash 与 VERSION.json 对应的桥内容不一致\nfile ${recorded}\nnode ${digest}\npython ${python}`)
   }
   installAndTest()
+  run('node', ['scripts/icons.mjs', '--check'], root)
 } else if (task === 'stamp') {
   stamp(version, true)
   console.log(writeHash())

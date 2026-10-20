@@ -1,0 +1,12 @@
+{
+  "set": "default",
+  "label": "正式版",
+  "masterSize": 1024,
+  "macos": {
+    "inset": 100,
+    "radius": 185
+  },
+  "windows": {
+    "inset": 0
+  }
+}

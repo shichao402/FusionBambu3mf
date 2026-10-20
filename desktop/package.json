@@ -8,6 +8,8 @@
     "build": "tsc && vite build",
     "test": "vitest run",
     "tauri": "tauri",
+    "icons": "node ../scripts/icons.mjs --all",
+    "icons:check": "node ../scripts/icons.mjs --check",
     "presets:sync": "node ../scripts/sync-bambu-presets.mjs",
     "deploy:dev": "node ../scripts/deploy-dev.mjs"
   },
